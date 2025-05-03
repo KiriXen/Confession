@@ -1,0 +1,34 @@
+{
+  "name": "confession-site",
+  "version": "1.0.0",
+  "description": "A ReactJS site with a confession-themed landing page",
+  "keywords": [],
+  "main": "src/index.js",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "animejs": "3.2.0",
+    "lucide-react": "^0.507.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-router-dom": "6.26.2",
+    "react-scripts": "5.0.1"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.4.20",
+    "dotenv": "^16.5.0",
+    "postcss": "8.4.47",
+    "tailwindcss": "3.4.13"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ]
+}
