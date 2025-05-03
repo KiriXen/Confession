@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Heart, Sparkles, Send, Trash2, Star, X, Edit2 } from 'lucide-react';
+import { Heart, Sparkles, Send, Trash2, Star, X, Edit2, MessageSquare } from 'lucide-react';
 import { neon } from '@neondatabase/serverless';
 
 // Fallback connection string for non-Vite environments (remove in production)
@@ -303,10 +303,16 @@ const HomePage = () => {
   const [page, setPage] = useState(1);
   const [useLocalStorage, setUseLocalStorage] = useState(false);
   const [userId] = useState(() => Math.random().toString(36).slice(2)); // Simple client-side user ID
+  const [username, setUsername] = useState(() => localStorage.getItem('username') || 'Anonymous');
+  const [isAnonymous, setIsAnonymous] = useState(() => localStorage.getItem('isAnonymous') === 'true');
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [userLikes, setUserLikes] = useState(new Set()); // Track user likes
+  const [replies, setReplies] = useState({}); // Track replies per confession
+  const [replyText, setReplyText] = useState({});
+  const [showReplies, setShowReplies] = useState({}); // Track which confessions show replies
   const maxLength = 280;
+  const maxUsernameLength = 20;
   const confessionsContainerRef = useRef(null);
   const observerRef = useRef(null);
   const [confessionsHeight, setConfessionsHeight] = useState(0);
@@ -322,6 +328,12 @@ const HomePage = () => {
     setQuote(randomQuote);
   }, []);
 
+  // Persist username and anonymity preference
+  useEffect(() => {
+    localStorage.setItem('username', username);
+    localStorage.setItem('isAnonymous', isAnonymous.toString());
+  }, [username, isAnonymous]);
+
   // Initialize database or fallback to local storage
   useEffect(() => {
     const initDb = async () => {
@@ -333,20 +345,30 @@ const HomePage = () => {
             id BIGINT PRIMARY KEY,
             text TEXT NOT NULL,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            hearts INTEGER DEFAULT 0
+            hearts INTEGER DEFAULT 0,
+            user_id TEXT,
+            username TEXT
           )
         `;
-        // Check if user_id column exists and add if missing
-        const columns = await sql`
+        // Check and add columns to confessions table
+        const confessionColumns = await sql`
           SELECT column_name 
           FROM information_schema.columns 
-          WHERE table_name = 'confessions' AND column_name = 'user_id'
+          WHERE table_name = 'confessions'
         `;
-        if (columns.length === 0) {
+        const confessionColumnNames = confessionColumns.map(col => col.column_name);
+        if (!confessionColumnNames.includes('user_id')) {
           console.log('[DEBUG] Adding user_id column to confessions table...');
           await sql`
             ALTER TABLE confessions
             ADD COLUMN user_id TEXT
+          `;
+        }
+        if (!confessionColumnNames.includes('username')) {
+          console.log('[DEBUG] Adding username column to confessions table...');
+          await sql`
+            ALTER TABLE confessions
+            ADD COLUMN username TEXT
           `;
         }
         // Create likes table
@@ -358,6 +380,32 @@ const HomePage = () => {
             FOREIGN KEY (confession_id) REFERENCES confessions(id) ON DELETE CASCADE
           )
         `;
+        // Create replies table
+        await sql`
+          CREATE TABLE IF NOT EXISTS replies (
+            id BIGINT PRIMARY KEY,
+            confession_id BIGINT NOT NULL,
+            text TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            user_id TEXT NOT NULL,
+            username TEXT,
+            FOREIGN KEY (confession_id) REFERENCES confessions(id) ON DELETE CASCADE
+          )
+        `;
+        // Check and add username column to replies table
+        const replyColumns = await sql`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'replies'
+        `;
+        const replyColumnNames = replyColumns.map(col => col.column_name);
+        if (!replyColumnNames.includes('username')) {
+          console.log('[DEBUG] Adding username column to replies table...');
+          await sql`
+            ALTER TABLE replies
+            ADD COLUMN username TEXT
+          `;
+        }
         console.log('[DEBUG] Database initialized successfully');
         fetchConfessions(1);
         fetchUserLikes();
@@ -365,11 +413,13 @@ const HomePage = () => {
         console.error('[ERROR] Database initialization failed:', err);
         setError('Failed to connect to database. Using local storage instead.');
         setUseLocalStorage(true);
-        // Load local confessions and likes if available
+        // Load local confessions, likes, and replies if available
         const localConfessions = JSON.parse(localStorage.getItem('confessions') || '[]');
         const localLikes = JSON.parse(localStorage.getItem('userLikes') || '[]');
+        const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
         setConfessions(localConfessions);
         setUserLikes(new Set(localLikes));
+        setReplies(localReplies);
       }
     };
     initDb();
@@ -390,7 +440,7 @@ const HomePage = () => {
     }
   }, [userId, useLocalStorage]);
 
-  // Fetch confessions with pagination
+  // Fetch confessions with pagination and their reply counts
   const fetchConfessions = useCallback(async (pageNum) => {
     if (useLocalStorage) {
       setLoading(true);
@@ -398,8 +448,13 @@ const HomePage = () => {
         const limit = 20;
         const offset = (pageNum - 1) * limit;
         const localConfessions = JSON.parse(localStorage.getItem('confessions') || '[]');
-        const paginated = localConfessions.slice(offset, offset + limit);
+        const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
+        const paginated = localConfessions.slice(offset, offset + limit).map(conf => ({
+          ...conf,
+          reply_count: (localReplies[conf.id] || []).length
+        }));
         setConfessions(prev => pageNum === 1 ? paginated : [...prev, ...paginated]);
+        setReplies(localReplies);
         setHasMore(paginated.length === limit);
         setPage(pageNum);
       } catch (err) {
@@ -417,8 +472,11 @@ const HomePage = () => {
       const limit = 20;
       const offset = (pageNum - 1) * limit;
       const result = await sql`
-        SELECT * FROM confessions
-        ORDER BY timestamp DESC
+        SELECT c.*, COUNT(r.id) as reply_count
+        FROM confessions c
+        LEFT JOIN replies r ON c.id = r.confession_id
+        GROUP BY c.id
+        ORDER BY c.timestamp DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
       setConfessions(prev => pageNum === 1 ? result : [...prev, ...result]);
@@ -430,6 +488,29 @@ const HomePage = () => {
       console.error('[ERROR] Fetch confessions failed:', err);
     } finally {
       setLoading(false);
+    }
+  }, [useLocalStorage]);
+
+  // Fetch replies for a specific confession
+  const fetchReplies = useCallback(async (confessionId) => {
+    if (useLocalStorage) {
+      const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
+      return localReplies[confessionId] || [];
+    }
+
+    try {
+      console.log('[DEBUG] Fetching replies for confession:', confessionId);
+      const result = await sql`
+        SELECT * FROM replies
+        WHERE confession_id = ${confessionId}
+        ORDER BY timestamp ASC
+      `;
+      console.log('[DEBUG] Fetched replies:', result.length);
+      return result;
+    } catch (err) {
+      setError('Failed to load replies. Please try again.');
+      console.error('[ERROR] Fetch replies failed:', err);
+      return [];
     }
   }, [useLocalStorage]);
 
@@ -460,12 +541,15 @@ const HomePage = () => {
     e.preventDefault();
     if (!confession.trim()) return;
     
+    const effectiveUsername = isAnonymous ? 'Anonymous' : username || 'Anonymous';
     const newConfession = {
       id: Date.now(),
       text: confession,
       timestamp: new Date().toISOString(),
       hearts: 0,
-      user_id: userId
+      user_id: userId,
+      username: effectiveUsername,
+      reply_count: 0
     };
   
     if (useLocalStorage) {
@@ -492,8 +576,8 @@ const HomePage = () => {
     try {
       console.log('[DEBUG] Submitting confession:', newConfession.text);
       await sql`
-        INSERT INTO confessions (id, text, timestamp, hearts, user_id)
-        VALUES (${newConfession.id}, ${newConfession.text}, ${newConfession.timestamp}, ${newConfession.hearts}, ${newConfession.user_id})
+        INSERT INTO confessions (id, text, timestamp, hearts, user_id, username)
+        VALUES (${newConfession.id}, ${newConfession.text}, ${newConfession.timestamp}, ${newConfession.hearts}, ${newConfession.user_id}, ${newConfession.username})
       `;
       setConfessions(prev => [newConfession, ...prev]);
       setConfession('');
@@ -508,6 +592,103 @@ const HomePage = () => {
     } catch (err) {
       setError('Failed to submit confession. Please try again.');
       console.error('[ERROR] Submit confession failed:', err);
+    }
+  };
+
+  // Handle reply submission
+  const handleReplySubmit = async (e, confessionId) => {
+    e.preventDefault();
+    const text = replyText[confessionId]?.trim();
+    if (!text) return;
+
+    const effectiveUsername = isAnonymous ? 'Anonymous' : username || 'Anonymous';
+    const newReply = {
+      id: Date.now(),
+      confession_id: confessionId,
+      text,
+      timestamp: new Date().toISOString(),
+      user_id: userId,
+      username: effectiveUsername
+    };
+
+    if (useLocalStorage) {
+      try {
+        const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
+        const confessionReplies = localReplies[confessionId] || [];
+        confessionReplies.push(newReply);
+        localReplies[confessionId] = confessionReplies;
+        localStorage.setItem('replies', JSON.stringify(localReplies));
+        setReplies(localReplies);
+        setReplyText(prev => ({ ...prev, [confessionId]: '' }));
+        setConfessions(prev =>
+          prev.map(conf =>
+            conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) + 1 } : conf
+          )
+        );
+      } catch (err) {
+        setError('Failed to save reply locally.');
+        console.error(err);
+      }
+      return;
+    }
+
+    try {
+      console.log('[DEBUG] Submitting reply for confession:', confessionId);
+      await sql`
+        INSERT INTO replies (id, confession_id, text, timestamp, user_id, username)
+        VALUES (${newReply.id}, ${newReply.confession_id}, ${newReply.text}, ${newReply.timestamp}, ${newReply.user_id}, ${newReply.username})
+      `;
+      const updatedReplies = await fetchReplies(confessionId);
+      setReplies(prev => ({ ...prev, [confessionId]: updatedReplies }));
+      setReplyText(prev => ({ ...prev, [confessionId]: '' }));
+      setConfessions(prev =>
+        prev.map(conf =>
+          conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) + 1 } : conf
+        )
+      );
+      console.log('[DEBUG] Reply submitted successfully');
+    } catch (err) {
+      setError('Failed to submit reply. Please try again.');
+      console.error('[ERROR] Submit reply failed:', err);
+    }
+  };
+
+  // Delete a reply
+  const deleteReply = async (confessionId, replyId) => {
+    if (useLocalStorage) {
+      try {
+        const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
+        const confessionReplies = localReplies[confessionId] || [];
+        const updatedReplies = confessionReplies.filter(reply => reply.id !== replyId);
+        localReplies[confessionId] = updatedReplies;
+        localStorage.setItem('replies', JSON.stringify(localReplies));
+        setReplies(localReplies);
+        setConfessions(prev =>
+          prev.map(conf =>
+            conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) - 1 } : conf
+          )
+        );
+      } catch (err) {
+        setError('Failed to delete reply locally.');
+        console.error(err);
+      }
+      return;
+    }
+
+    try {
+      console.log('[DEBUG] Deleting reply:', replyId);
+      await sql`DELETE FROM replies WHERE id = ${replyId}`;
+      const updatedReplies = await fetchReplies(confessionId);
+      setReplies(prev => ({ ...prev, [confessionId]: updatedReplies }));
+      setConfessions(prev =>
+        prev.map(conf =>
+          conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) - 1 } : conf
+        )
+      );
+      console.log('[DEBUG] Reply deleted successfully');
+    } catch (err) {
+      setError('Failed to delete reply. Please try again.');
+      console.error('[ERROR] Delete reply failed:', err);
     }
   };
 
@@ -654,8 +835,11 @@ const HomePage = () => {
         const updatedConfessions = localConfessions.filter(conf => conf.id !== id);
         const localLikes = JSON.parse(localStorage.getItem('userLikes') || '[]');
         const updatedLikes = localLikes.filter(likeId => likeId !== id);
+        const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
+        delete localReplies[id];
         localStorage.setItem('confessions', JSON.stringify(updatedConfessions));
         localStorage.setItem('userLikes', JSON.stringify(updatedLikes));
+        localStorage.setItem('replies', JSON.stringify(localReplies));
         const confessionElement = document.getElementById(`confession-${id}`);
         if (confessionElement) {
           confessionElement.style.opacity = '0';
@@ -663,10 +847,12 @@ const HomePage = () => {
           setTimeout(() => {
             setConfessions(updatedConfessions);
             setUserLikes(new Set(updatedLikes));
+            setReplies(localReplies);
           }, 300);
         } else {
           setConfessions(updatedConfessions);
           setUserLikes(new Set(updatedLikes));
+          setReplies(localReplies);
         }
       } catch (err) {
         setError('Failed to delete confession locally.');
@@ -689,6 +875,11 @@ const HomePage = () => {
             newLikes.delete(id);
             return newLikes;
           });
+          setReplies(prev => {
+            const newReplies = { ...prev };
+            delete newReplies[id];
+            return newReplies;
+          });
         }, 300);
       } else {
         await sql`DELETE FROM confessions WHERE id = ${id}`;
@@ -697,6 +888,11 @@ const HomePage = () => {
           const newLikes = new Set(prev);
           newLikes.delete(id);
           return newLikes;
+        });
+        setReplies(prev => {
+          const newReplies = { ...prev };
+          delete newReplies[id];
+          return newReplies;
         });
       }
       console.log('[DEBUG] Confession deleted successfully');
@@ -712,6 +908,15 @@ const HomePage = () => {
     const confessionTime = new Date(timestamp).getTime();
     const currentTime = new Date().getTime();
     return currentTime - confessionTime < FIVE_MINUTES;
+  };
+
+  // Toggle show/hide replies
+  const toggleShowReplies = async (confessionId) => {
+    setShowReplies(prev => ({ ...prev, [confessionId]: !prev[confessionId] }));
+    if (!showReplies[confessionId] && !replies[confessionId]) {
+      const fetchedReplies = await fetchReplies(confessionId);
+      setReplies(prev => ({ ...prev, [confessionId]: fetchedReplies }));
+    }
   };
 
   // Navigation placeholder
@@ -740,6 +945,32 @@ const HomePage = () => {
 
         <div className="bg-gray-900/50 backdrop-blur-md rounded-xl p-5 shadow-lg border border-gray-800/50 transition-all duration-300 hover:shadow-indigo-500/10">
           <form onSubmit={handleSubmit}>
+            <div className="mb-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={isAnonymous ? '' : username}
+                  onChange={(e) => setUsername(e.target.value.slice(0, maxUsernameLength))}
+                  placeholder="Enter your username"
+                  disabled={isAnonymous}
+                  className="w-full p-2 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 placeholder-gray-500 transition-all duration-300"
+                  aria-label="Username input"
+                />
+                <div className="text-gray-400 text-sm font-mono">
+                  {isAnonymous ? 0 : username.length} / {maxUsernameLength}
+                </div>
+              </div>
+              <label className="flex items-center space-x-2 mt-2 text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={isAnonymous}
+                  onChange={(e) => setIsAnonymous(e.target.checked)}
+                  className="form-checkbox h-4 w-4 text-indigo-400 bg-gray-800 border-gray-700 focus:ring-indigo-400"
+                  aria-label="Stay anonymous"
+                />
+                <span className="text-sm">Stay anonymous?</span>
+              </label>
+            </div>
             <textarea
               value={confession}
               onChange={(e) => setConfession(e.target.value.slice(0, maxLength))}
@@ -846,6 +1077,11 @@ const HomePage = () => {
                       </div>
                     ) : (
                       <>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="text-indigo-400 font-medium text-sm">
+                            {conf.username || 'Anonymous'}
+                          </span>
+                        </div>
                         <p className="text-gray-200">{conf.text}</p>
                         <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-700/30">
                           <div className="flex items-center space-x-3">
@@ -859,6 +1095,14 @@ const HomePage = () => {
                                 className={userLikes.has(conf.id) ? "text-indigo-400 fill-indigo-400" : ""} 
                               />
                               <span>{conf.hearts || 0}</span>
+                            </button>
+                            <button
+                              onClick={() => toggleShowReplies(conf.id)}
+                              className="flex items-center space-x-1 text-gray-400 hover:text-indigo-400 transition-colors"
+                              aria-label={showReplies[conf.id] ? `Hide replies for confession ${conf.id}` : `Show replies for confession ${conf.id}`}
+                            >
+                              <MessageSquare size={16} />
+                              <span>{conf.reply_count || 0}</span>
                             </button>
                             {conf.user_id === userId && canModify(conf.timestamp) && (
                               <>
@@ -883,6 +1127,67 @@ const HomePage = () => {
                             {new Date(conf.timestamp).toLocaleString()}
                           </p>
                         </div>
+                        {showReplies[conf.id] && (
+                          <div className="mt-4">
+                            <form onSubmit={(e) => handleReplySubmit(e, conf.id)} className="mb-4">
+                              <textarea
+                                value={replyText[conf.id] || ''}
+                                onChange={(e) => setReplyText(prev => ({ ...prev, [conf.id]: e.target.value.slice(0, maxLength) }))}
+                                placeholder="Write a reply..."
+                                className="w-full p-2 rounded-lg bg-gray-700/80 text-gray-200 border border-gray-600/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
+                                rows="2"
+                                aria-label="Reply input"
+                              />
+                              <div className="flex justify-between items-center mt-2">
+                                <div className="text-gray-400 text-sm font-mono">
+                                  {(replyText[conf.id] || '').length} / {maxLength}
+                                </div>
+                                <button
+                                  type="submit"
+                                  disabled={!replyText[conf.id]?.trim()}
+                                  className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium py-1 px-3 rounded-lg shadow-md hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                                  aria-label="Submit reply"
+                                >
+                                  <Send size={16} />
+                                  <span>Reply</span>
+                                </button>
+                              </div>
+                            </form>
+                            {replies[conf.id]?.length > 0 ? (
+                              <ul className="space-y-2">
+                                {replies[conf.id].map(reply => (
+                                  <li
+                                    key={reply.id}
+                                    className="bg-gray-900/50 p-2 rounded-lg text-gray-300 text-sm border border-gray-800/50"
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <span className="text-indigo-400 font-medium">
+                                          {reply.username || 'Anonymous'}
+                                        </span>
+                                        <p className="mt-1">{reply.text}</p>
+                                      </div>
+                                      {reply.user_id === userId && canModify(reply.timestamp) && (
+                                        <button
+                                          onClick={() => deleteReply(conf.id, reply.id)}
+                                          className="text-gray-400 hover:text-gray-200 transition-colors"
+                                          aria-label={`Delete reply ${reply.id}`}
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-gray-500 text-xs mt-1">
+                                      {new Date(reply.timestamp).toLocaleString()}
+                                    </p>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-gray-400 text-sm">No replies yet.</p>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
                   </li>
