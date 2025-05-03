@@ -327,16 +327,29 @@ const HomePage = () => {
     const initDb = async () => {
       try {
         console.log('[DEBUG] Initializing database...');
-        // Split table creation into separate queries
+        // Create or ensure confessions table
         await sql`
           CREATE TABLE IF NOT EXISTS confessions (
             id BIGINT PRIMARY KEY,
             text TEXT NOT NULL,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            hearts INTEGER DEFAULT 0,
-            user_id TEXT NOT NULL
+            hearts INTEGER DEFAULT 0
           )
         `;
+        // Check if user_id column exists and add if missing
+        const columns = await sql`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'confessions' AND column_name = 'user_id'
+        `;
+        if (columns.length === 0) {
+          console.log('[DEBUG] Adding user_id column to confessions table...');
+          await sql`
+            ALTER TABLE confessions
+            ADD COLUMN user_id TEXT
+          `;
+        }
+        // Create likes table
         await sql`
           CREATE TABLE IF NOT EXISTS likes (
             user_id TEXT NOT NULL,
