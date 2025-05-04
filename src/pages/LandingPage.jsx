@@ -1,19 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Star, X } from 'lucide-react';
-
-const quotes = [
-  { text: "I love you not only for what you are, but for what I am when I am with you.", author: "Elizabeth Barrett Browning" },
-  { text: "You are my heart, my life, my one and only thought.", author: "Arthur Conan Doyle" },
-  { text: "In all the world, there is no heart for me like yours.", author: "Maya Angelou" },
-  { text: "I am yours, don't give myself back to me.", author: "Rumi" },
-  { text: "My heart is, and always will be, yours.", author: "Jane Austen" },
-  { text: "Every atom of your flesh is as dear to me as my own.", author: "Charlotte Brontë" },
-  { text: "I carry your heart with me (I carry it in my heart).", author: "E.E. Cummings" },
-  { text: "You are the finest, loveliest, tenderest, and most beautiful person I have ever known.", author: "F. Scott Fitzgerald" },
-  { text: "If I know what love is, it is because of you.", author: "Hermann Hesse" },
-  { text: "To love and be loved is to feel the sun from both sides.", author: "David Viscott" },
-];
+import { quotes } from './quotes';
+import '../components/Flower';
 
 const StarField = () => {
   const stars = useMemo(() => {
@@ -151,26 +140,6 @@ const StarField = () => {
 };
 
 const NightSkyBg = () => {
-  const [moonClicks, setMoonClicks] = useState(0);
-  const [showEasterEgg, setShowEasterEgg] = useState(false);
-
-  const handleMoonClick = () => {
-    setMoonClicks(prev => {
-      const newCount = prev + 1;
-      if (newCount === 5) {
-        setShowEasterEgg(true);
-        window.dispatchEvent(new CustomEvent('easterEggToggle', { detail: true }));
-        setTimeout(() => {
-          setShowEasterEgg(false);
-          window.dispatchEvent(new CustomEvent('easterEggToggle', { detail: false }));
-          setMoonClicks(0);
-        }, 6000);
-        return 0;
-      }
-      return newCount;
-    });
-  };
-
   const nightSkyElements = useMemo(() => {
     const cloudLayers = [
       { top: '20%', left: '-30%', width: '90%', height: '180px', opacity: 0.15, speed: '240s', delay: '-20s', blur: 'blur-2xl' },
@@ -180,36 +149,6 @@ const NightSkyBg = () => {
       { top: '5%', left: '-10%', width: '50%', height: '80px', opacity: 0.08, speed: '160s', delay: '-40s', blur: 'blur-lg' },
       { top: '75%', left: '0%', width: '60%', height: '90px', opacity: 0.05, speed: '190s', delay: '-70s', blur: 'blur-xl' }
     ];
-
-    const hearts = showEasterEgg ? Array.from({ length: 30 }, (_, i) => {
-      const angle = Math.random() * 120 - 60;
-      const size = Math.random() * 24 + 12;
-      const delay = Math.random() * 2;
-      const duration = Math.random() * 2 + 3;
-      return (
-        <div
-          key={`heart-${i}`}
-          className="absolute"
-          style={{
-            bottom: '10%',
-            left: '50%',
-            transform: `translateX(-50%)`,
-            animation: `heartFlight ${duration}s ease-out ${delay}s forwards`,
-            animationDirection: angle < 0 ? 'normal' : 'reverse',
-            zIndex: 100
-          }}
-        >
-          <Heart
-            size={size}
-            className="text-red-500 fill-red-500"
-            style={{
-              filter: 'drop-shadow(0 0 5px rgba(255, 0, 0, 0.8))',
-              transform: `rotate(${Math.random() * 360}deg)`
-            }}
-          />
-        </div>
-      );
-    }) : [];
 
     return (
       <>
@@ -239,8 +178,7 @@ const NightSkyBg = () => {
         </div>
         
         <div
-          className="absolute top-20 right-20 w-16 h-16 rounded-full bg-gradient-to-br from-gray-100 to-gray-300 cursor-pointer"
-          onClick={handleMoonClick}
+          className="absolute top-20 right-20 w-16 h-16 rounded-full bg-gradient-to-br from-gray-100 to-gray-300"
         >
           <div className="absolute inset-0 rounded-full bg-white/90"></div>
           <div className="absolute -inset-4 rounded-full bg-white/20 blur-md"></div>
@@ -252,27 +190,9 @@ const NightSkyBg = () => {
           <div className="absolute bottom-4 right-5 w-1 h-1 rounded-full bg-gray-400/40"></div>
           <div className="absolute top-6 left-2 w-1 h-1 rounded-full bg-gray-400/40"></div>
         </div>
-
-        {showEasterEgg && (
-          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-90 animate-volcanoErupt">
-            <div className="relative w-48 h-64">
-              <div
-                className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-48 h-48 bg-gradient-to-t from-gray-800 to-gray-600"
-                style={{
-                  clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)'
-                }}
-              />
-              <div
-                className="absolute bottom-48 left-1/2 transform -translate-x-1/2 w-24 h-24 bg-red-500 rounded-full opacity-70 animate-volcanoGlow"
-                style={{ filter: 'blur(20px)' }}
-              />
-            </div>
-          </div>
-        )}
-        {hearts}
       </>
     );
-  }, [showEasterEgg]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-0">
@@ -340,7 +260,7 @@ const DraggableQuote = ({ quote, onClose }) => {
       <div className="flex justify-between items-start">
         <div className="flex items-center space-x-2 mb-3">
           <Heart size={16} className="text-indigo-400" />
-          <span className="text-indigo-400 font-medium text-sm">Love Note</span>
+          <span className="text-indigo-400 font-medium text-sm">Quotes</span>
         </div>
         <button 
           onClick={onClose}
@@ -349,8 +269,8 @@ const DraggableQuote = ({ quote, onClose }) => {
           <X size={16} />
         </button>
       </div>
-      <p className="text-gray-200 italic text-sm sm:text-base">"{quote.text}"</p>
-      <p className="text-indigo-400 text-right mt-2 font-medium text-sm">— {quote.author}</p>
+      <p className="text-gray-200 italic text-sm sm:text-base unselectable">"{quote.text}"</p>
+      <p className="text-indigo-400 text-right mt-2 font-medium text-sm unselectable">— {quote.author}</p>
     </div>
   );
 };
@@ -359,7 +279,6 @@ const LandingPage = () => {
   const [isContainer, setIsContainer] = useState(true);
   const [quote, setQuote] = useState(null);
   const [quoteVisible, setQuoteVisible] = useState(true);
-  const [showEasterEgg, setShowEasterEgg] = useState(false);
 
   useEffect(() => {
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
@@ -373,16 +292,8 @@ const LandingPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    const handleEasterEgg = (e) => {
-      setShowEasterEgg(e.detail);
-    };
-    window.addEventListener('easterEggToggle', handleEasterEgg);
-    return () => window.removeEventListener('easterEggToggle', handleEasterEgg);
-  }, []);
-
   return (
-    <div className={`min-h-screen flex items-center justify-center relative overflow-y-auto transition-all duration-500 ${isContainer ? 'container' : ''} ${showEasterEgg ? 'backdrop-blur-md' : ''}`}>
+    <div className={`min-h-screen flex items-center justify-center relative overflow-y-auto transition-all duration-500 ${isContainer ? 'container' : ''}`}>
       <NightSkyBg />
       <StarField />
       
@@ -661,7 +572,7 @@ const LandingPage = () => {
       </div>
 
       <div className="text-center z-10 p-4">
-        <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-blue-300 via-indigo-400 to-purple-500 bg-clip-text text-transparent mb-4 tracking-tight">
+        <h1 className="text-5xl md:text-7xl font-bold text-white drop-shadow-lg mb-4 tracking-tight">
           Welcome to Sam's Basement
         </h1>
         <p className="text-xl text-gray-300 max-w-md mx-auto mb-6">

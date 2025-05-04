@@ -1,25 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Heart, Sparkles, Send, Trash2, Star, X, Edit2, MessageSquare } from 'lucide-react';
 import { neon } from '@neondatabase/serverless';
+import { quotes } from './quotes';
 
-// Fallback connection string for non-Vite environments (remove in production)
 const FALLBACK_DB_URL = 'postgresql://confession_owner:npg_MxTItZfkQ79r@ep-snowy-mode-a4e4zve3-pooler.us-east-1.aws.neon.tech/confession?sslmode=require';
 
-// Initialize Neon database
 const sql = neon(import.meta.env?.VITE_NEON_DATABASE_URL || FALLBACK_DB_URL);
-
-const quotes = [
-  { text: "I love you not only for what you are, but for what I am when I am with you.", author: "Elizabeth Barrett Browning" },
-  { text: "You are my heart, my life, my one and only thought.", author: "Arthur Conan Doyle" },
-  { text: "In all the world, there is no heart for me like yours.", author: "Maya Angelou" },
-  { text: "I am yours, don't give myself back to me.", author: "Rumi" },
-  { text: "My heart is, and always will be, yours.", author: "Jane Austen" },
-  { text: "Every atom of your flesh is as dear to me as my own.", author: "Charlotte Brontë" },
-  { text: "I carry your heart with me (I carry it in my heart).", author: "E.E. Cummings" },
-  { text: "You are the finest, loveliest, tenderest, and most beautiful person I have ever known.", author: "F. Scott Fitzgerald" },
-  { text: "If I know what love is, it is because of you.", author: "Hermann Hesse" },
-  { text: "To love and be loved is to feel the sun from both sides.", author: "David Viscott" },
-];
 
 const StarField = () => {
   const stars = useMemo(() => {
@@ -275,7 +261,7 @@ const DraggableQuote = ({ quote, onClose }) => {
       <div className="flex justify-between items-start">
         <div className="flex items-center space-x-2 mb-3">
           <Heart size={16} className="text-indigo-400" />
-          <span className="text-indigo-400 font-medium text-sm">Love Note</span>
+          <span className="text-indigo-400 font-medium text-sm">Quotes</span>
         </div>
         <button 
           onClick={onClose}
@@ -285,8 +271,8 @@ const DraggableQuote = ({ quote, onClose }) => {
           <X size={16} />
         </button>
       </div>
-      <p className="text-gray-200 italic text-sm sm:text-base">"{quote.text}"</p>
-      <p className="text-indigo-400 text-right mt-2 font-medium text-sm">— {quote.author}</p>
+      <p className="text-gray-200 italic text-sm sm:text-base unselectable">"{quote.text}"</p>
+      <p className="text-indigo-400 text-right mt-2 font-medium text-sm unselectable">— {quote.author}</p>
     </div>
   );
 };
@@ -302,44 +288,39 @@ const HomePage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const [useLocalStorage, setUseLocalStorage] = useState(false);
-  const [userId] = useState(() => Math.random().toString(36).slice(2)); // Simple client-side user ID
+  const [userId] = useState(() => Math.random().toString(36).slice(2));
   const [username, setUsername] = useState(() => localStorage.getItem('username') || 'Anonymous');
   const [isAnonymous, setIsAnonymous] = useState(() => localStorage.getItem('isAnonymous') === 'true');
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
-  const [userLikes, setUserLikes] = useState(new Set()); // Track user likes
-  const [replies, setReplies] = useState({}); // Track replies per confession
+  const [userLikes, setUserLikes] = useState(new Set());
+  const [replies, setReplies] = useState({});
   const [replyText, setReplyText] = useState({});
-  const [showReplies, setShowReplies] = useState({}); // Track which confessions show replies
+  const [showReplies, setShowReplies] = useState({});
   const maxLength = 280;
   const maxUsernameLength = 20;
   const confessionsContainerRef = useRef(null);
   const observerRef = useRef(null);
   const [confessionsHeight, setConfessionsHeight] = useState(0);
 
-  // Debug: Log environment variable
   useEffect(() => {
     console.log('[DEBUG] VITE_NEON_DATABASE_URL:', import.meta.env?.VITE_NEON_DATABASE_URL || 'Using fallback');
   }, []);
 
-  // Initialize quote
   useEffect(() => {
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
     setQuote(randomQuote);
   }, []);
 
-  // Persist username and anonymity preference
   useEffect(() => {
     localStorage.setItem('username', username);
     localStorage.setItem('isAnonymous', isAnonymous.toString());
   }, [username, isAnonymous]);
 
-  // Initialize database or fallback to local storage
   useEffect(() => {
     const initDb = async () => {
       try {
         console.log('[DEBUG] Initializing database...');
-        // Create or ensure confessions table
         await sql`
           CREATE TABLE IF NOT EXISTS confessions (
             id BIGINT PRIMARY KEY,
@@ -350,7 +331,6 @@ const HomePage = () => {
             username TEXT
           )
         `;
-        // Check and add columns to confessions table
         const confessionColumns = await sql`
           SELECT column_name 
           FROM information_schema.columns 
@@ -371,7 +351,6 @@ const HomePage = () => {
             ADD COLUMN username TEXT
           `;
         }
-        // Create likes table
         await sql`
           CREATE TABLE IF NOT EXISTS likes (
             user_id TEXT NOT NULL,
@@ -380,7 +359,6 @@ const HomePage = () => {
             FOREIGN KEY (confession_id) REFERENCES confessions(id) ON DELETE CASCADE
           )
         `;
-        // Create replies table
         await sql`
           CREATE TABLE IF NOT EXISTS replies (
             id BIGINT PRIMARY KEY,
@@ -392,7 +370,6 @@ const HomePage = () => {
             FOREIGN KEY (confession_id) REFERENCES confessions(id) ON DELETE CASCADE
           )
         `;
-        // Check and add username column to replies table
         const replyColumns = await sql`
           SELECT column_name 
           FROM information_schema.columns 
@@ -413,7 +390,6 @@ const HomePage = () => {
         console.error('[ERROR] Database initialization failed:', err);
         setError('Failed to connect to database. Using local storage instead.');
         setUseLocalStorage(true);
-        // Load local confessions, likes, and replies if available
         const localConfessions = JSON.parse(localStorage.getItem('confessions') || '[]');
         const localLikes = JSON.parse(localStorage.getItem('userLikes') || '[]');
         const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
@@ -425,7 +401,6 @@ const HomePage = () => {
     initDb();
   }, []);
 
-  // Fetch user likes
   const fetchUserLikes = useCallback(async () => {
     if (useLocalStorage) return;
     try {
@@ -440,7 +415,6 @@ const HomePage = () => {
     }
   }, [userId, useLocalStorage]);
 
-  // Fetch confessions with pagination and their reply counts
   const fetchConfessions = useCallback(async (pageNum) => {
     if (useLocalStorage) {
       setLoading(true);
@@ -451,7 +425,7 @@ const HomePage = () => {
         const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
         const paginated = localConfessions.slice(offset, offset + limit).map(conf => ({
           ...conf,
-          reply_count: (localReplies[conf.id] || []).length
+          reply_count: Number(localReplies[conf.id]?.length || 0)
         }));
         setConfessions(prev => pageNum === 1 ? paginated : [...prev, ...paginated]);
         setReplies(localReplies);
@@ -479,7 +453,11 @@ const HomePage = () => {
         ORDER BY c.timestamp DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
-      setConfessions(prev => pageNum === 1 ? result : [...prev, ...result]);
+      const sanitizedResult = result.map(conf => ({
+        ...conf,
+        reply_count: Number(conf.reply_count || 0)
+      }));
+      setConfessions(prev => pageNum === 1 ? sanitizedResult : [...prev, ...sanitizedResult]);
       setHasMore(result.length === limit);
       setPage(pageNum);
       console.log('[DEBUG] Fetched confessions:', result.length);
@@ -491,7 +469,6 @@ const HomePage = () => {
     }
   }, [useLocalStorage]);
 
-  // Fetch replies for a specific confession
   const fetchReplies = useCallback(async (confessionId) => {
     if (useLocalStorage) {
       const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
@@ -514,7 +491,6 @@ const HomePage = () => {
     }
   }, [useLocalStorage]);
 
-  // IntersectionObserver for infinite scroll
   const lastConfessionRef = useCallback(node => {
     if (loading || !hasMore) return;
     if (observerRef.current) observerRef.current.disconnect();
@@ -526,7 +502,6 @@ const HomePage = () => {
     if (node) observerRef.current.observe(node);
   }, [loading, hasMore, page, fetchConfessions]);
 
-  // Measure confessions container height
   useEffect(() => {
     if (confessionsContainerRef.current && confessions.length > 0) {
       const currentHeight = confessionsContainerRef.current.offsetHeight;
@@ -536,7 +511,6 @@ const HomePage = () => {
     }
   }, [confessions]);
 
-  // Handle confession submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!confession.trim()) return;
@@ -551,7 +525,7 @@ const HomePage = () => {
       username: effectiveUsername,
       reply_count: 0
     };
-  
+    
     if (useLocalStorage) {
       try {
         const localConfessions = JSON.parse(localStorage.getItem('confessions') || '[]');
@@ -568,11 +542,11 @@ const HomePage = () => {
         }, 100);
       } catch (err) {
         setError('Failed to save confession locally.');
-        console.error(err);
+        sprach
       }
       return;
     }
-  
+    
     try {
       console.log('[DEBUG] Submitting confession:', newConfession.text);
       await sql`
@@ -595,7 +569,6 @@ const HomePage = () => {
     }
   };
 
-  // Handle reply submission
   const handleReplySubmit = async (e, confessionId) => {
     e.preventDefault();
     const text = replyText[confessionId]?.trim();
@@ -622,7 +595,9 @@ const HomePage = () => {
         setReplyText(prev => ({ ...prev, [confessionId]: '' }));
         setConfessions(prev =>
           prev.map(conf =>
-            conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) + 1 } : conf
+            conf.id === confessionId
+              ? { ...conf, reply_count: Number(conf.reply_count || 0) + 1 }
+              : conf
           )
         );
       } catch (err) {
@@ -643,7 +618,9 @@ const HomePage = () => {
       setReplyText(prev => ({ ...prev, [confessionId]: '' }));
       setConfessions(prev =>
         prev.map(conf =>
-          conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) + 1 } : conf
+          conf.id === confessionId
+            ? { ...conf, reply_count: Number(conf.reply_count || 0) + 1 }
+            : conf
         )
       );
       console.log('[DEBUG] Reply submitted successfully');
@@ -653,7 +630,6 @@ const HomePage = () => {
     }
   };
 
-  // Delete a reply
   const deleteReply = async (confessionId, replyId) => {
     if (useLocalStorage) {
       try {
@@ -665,7 +641,9 @@ const HomePage = () => {
         setReplies(localReplies);
         setConfessions(prev =>
           prev.map(conf =>
-            conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) - 1 } : conf
+            conf.id === confessionId
+              ? { ...conf, reply_count: Number(conf.reply_count || 0) - 1 }
+              : conf
           )
         );
       } catch (err) {
@@ -682,7 +660,9 @@ const HomePage = () => {
       setReplies(prev => ({ ...prev, [confessionId]: updatedReplies }));
       setConfessions(prev =>
         prev.map(conf =>
-          conf.id === confessionId ? { ...conf, reply_count: (conf.reply_count || 0) - 1 } : conf
+          conf.id === confessionId
+            ? { ...conf, reply_count: Number(conf.reply_count || 0) - 1 }
+            : conf
         )
       );
       console.log('[DEBUG] Reply deleted successfully');
@@ -692,7 +672,6 @@ const HomePage = () => {
     }
   };
 
-  // Toggle like/unlike for a confession
   const toggleLikeConfession = useCallback(async (id) => {
     if (useLocalStorage) {
       try {
@@ -702,17 +681,15 @@ const HomePage = () => {
         
         let updatedConfessions;
         if (hasLiked) {
-          // Unlike
           updatedConfessions = localConfessions.map(conf =>
-            conf.id === id ? { ...conf, hearts: (conf.hearts || 0) - 1 } : conf
+            conf.id === id ? { ...conf, hearts: Number(conf.hearts || 0) - 1 } : conf
           );
           const updatedLikes = localLikes.filter(likeId => likeId !== id);
           localStorage.setItem('userLikes', JSON.stringify(updatedLikes));
           setUserLikes(new Set(updatedLikes));
         } else {
-          // Like
           updatedConfessions = localConfessions.map(conf =>
-            conf.id === id ? { ...conf, hearts: (conf.hearts || 0) + 1 } : conf
+            conf.id === id ? { ...conf, hearts: Number(conf.hearts || 0) + 1 } : conf
           );
           localLikes.push(id);
           localStorage.setItem('userLikes', JSON.stringify(localLikes));
@@ -733,7 +710,6 @@ const HomePage = () => {
       const hasLiked = userLikes.has(id);
       
       if (hasLiked) {
-        // Unlike
         await sql`
           DELETE FROM likes 
           WHERE user_id = ${userId} AND confession_id = ${id}
@@ -754,7 +730,6 @@ const HomePage = () => {
         );
         console.log('[DEBUG] Confession unliked successfully');
       } else {
-        // Like
         await sql`
           INSERT INTO likes (user_id, confession_id)
           VALUES (${userId}, ${id})
@@ -777,7 +752,6 @@ const HomePage = () => {
     }
   }, [userId, userLikes, useLocalStorage]);
 
-  // Edit a confession
   const startEditing = (id, text) => {
     setEditingId(id);
     setEditText(text);
@@ -827,7 +801,6 @@ const HomePage = () => {
     }
   };
 
-  // Delete a confession
   const deleteConfession = async (id) => {
     if (useLocalStorage) {
       try {
@@ -902,7 +875,6 @@ const HomePage = () => {
     }
   };
 
-  // Check if edit/delete is allowed (within 5 minutes)
   const canModify = (timestamp) => {
     const FIVE_MINUTES = 5 * 60 * 1000;
     const confessionTime = new Date(timestamp).getTime();
@@ -910,7 +882,6 @@ const HomePage = () => {
     return currentTime - confessionTime < FIVE_MINUTES;
   };
 
-  // Toggle show/hide replies
   const toggleShowReplies = async (confessionId) => {
     setShowReplies(prev => ({ ...prev, [confessionId]: !prev[confessionId] }));
     if (!showReplies[confessionId] && !replies[confessionId]) {
@@ -919,7 +890,6 @@ const HomePage = () => {
     }
   };
 
-  // Navigation placeholder
   const navigateToConfess = () => {
     console.log('Navigating to /confess page');
   };
@@ -935,7 +905,7 @@ const HomePage = () => {
 
       <div className="w-full max-w-xl z-10 space-y-8 mt-8">
         <div className="text-center">
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-blue-300 via-indigo-400 to-purple-500 bg-clip-text text-transparent mb-4 tracking-tight">
+          <h1 className="text-5xl md:text-7xl font-bold text-white drop-shadow-lg mb-4 tracking-tight">
             Welcome to Sam's Basement
           </h1>
           <p className="text-lg text-gray-300 max-w-lg mx-auto">
@@ -986,220 +956,172 @@ const HomePage = () => {
               <button
                 type="submit"
                 disabled={!confession.trim()}
-                className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 aria-label="Submit confession"
               >
-                <Send size={18} />
-                <span>Submit Confession</span>
+                <Send size={16} />
+                <span>Confess</span>
               </button>
             </div>
           </form>
+
           {showSuccess && (
-            <div className="flex items-center justify-center space-x-2 text-indigo-400 mt-3 bg-indigo-500/10 py-2 px-3 rounded-lg animate-fadeIn">
-              <Sparkles size={18} />
-              <span>Your confession shines among the stars!</span>
+            <div className="mt-4 p-3 bg-green-900/60 text-green-300 rounded-lg flex items-center space-x-2 animate-fadeIn">
+              <Sparkles size={16} />
+              <span>Your confession has been sent to the stars!</span>
             </div>
           )}
+
           {error && (
-            <div className="text-red-400 mt-3 bg-red-500/10 py-2 px-3 rounded-lg animate-fadeIn">
-              {error}
+            <div className="mt-4 p-3 bg-red-900/60 text-red-300 rounded-lg flex items-center space-x-2 animate-fadeIn">
+              <span>{error}</span>
             </div>
           )}
         </div>
 
-        <div className="flex justify-center">
-          <button 
-            onClick={navigateToConfess}
-            className="relative overflow-hidden bg-black text-white font-bold py-3 px-6 rounded-lg shadow-lg group transition-all duration-300 hover:scale-105"
-            aria-label="Share more confessions"
-          >
-            <span className="relative z-10 flex items-center space-x-2">
-              <Heart className="text-indigo-400" size={20} />
-              <span>Share More Confessions</span>
-            </span>
-            <span className="absolute inset-0 border-2 border-transparent rounded-lg bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 -z-10 group-hover:blur-sm transition-all duration-300"></span>
-            <span className="absolute inset-0 -z-20 bg-gradient-to-r from-indigo-500/0 via-blue-500/20 to-purple-500/0 opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300"></span>
-          </button>
-        </div>
-
-        <div 
-          ref={confessionsContainerRef}
-          className="transition-all duration-500 ease-in-out"
-          style={{ 
-            minHeight: confessions.length ? (confessionsHeight ? confessionsHeight + 'px' : 'auto') : '0px'
-          }}
-        >
-          {confessions.length > 0 && (
-            <div className="bg-gray-900/50 backdrop-blur-md rounded-xl p-5 shadow-lg border border-gray-800/50 transition-all duration-300">
-              <div className="flex items-center space-x-2 mb-5">
-                <Star className="text-cyan-400" size={20} />
-                <h2 className="text-2xl font-semibold bg-gradient-to-r from-indigo-300 to-cyan-300 bg-clip-text text-transparent">
-                  Starlit Confessions
-                </h2>
-              </div>
-              <ul className="space-y-4">
-                {confessions.map((conf, index) => (
-                  <li
-                    key={conf.id}
-                    id={`confession-${conf.id}`}
-                    ref={index === confessions.length - 1 ? lastConfessionRef : null}
-                    className="bg-gray-800/70 p-4 rounded-xl shadow-sm text-gray-200 border border-gray-700/30 hover:border-gray-600/50 transform hover:-translate-y-1 hover:shadow-md hover:shadow-indigo-500/10 transition-all duration-500 animate-fadeIn"
-                  >
-                    {editingId === conf.id ? (
-                      <div>
-                        <textarea
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value.slice(0, maxLength))}
-                          className="w-full p-2 rounded-lg bg-gray-700/80 text-gray-200 border border-gray-600/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y"
-                          rows="3"
-                        />
-                        <div className="flex justify-between items-center mt-2">
-                          <div className="text-gray-400 text-sm font-mono">
-                            {editText.length} / {maxLength}
-                          </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => saveEdit(conf.id)}
-                              className="flex items-center space-x-1 bg-indigo-500 text-white py-1 px-3 rounded-lg hover:bg-indigo-600 transition-colors"
-                              aria-label="Save edited confession"
-                            >
-                              <span>Save</span>
-                            </button>
-                            <button
-                              onClick={cancelEditing}
-                              className="flex items-center space-x-1 bg-gray-600 text-gray-200 py-1 px-3 rounded-lg hover:bg-gray-500 transition-colors"
-                              aria-label="Cancel editing"
-                            >
-                              <span>Cancel</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <span className="text-indigo-400 font-medium text-sm">
-                            {conf.username || 'Anonymous'}
-                          </span>
-                        </div>
-                        <p className="text-gray-200">{conf.text}</p>
-                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-700/30">
-                          <div className="flex items-center space-x-3">
-                            <button 
-                              onClick={() => toggleLikeConfession(conf.id)}
-                              className="flex items-center space-x-1 text-gray-400 hover:text-indigo-400 transition-colors"
-                              aria-label={userLikes.has(conf.id) ? `Unlike confession ${conf.id}` : `Like confession ${conf.id}`}
-                            >
-                              <Heart 
-                                size={16} 
-                                className={userLikes.has(conf.id) ? "text-indigo-400 fill-indigo-400" : ""} 
-                              />
-                              <span>{conf.hearts || 0}</span>
-                            </button>
-                            <button
-                              onClick={() => toggleShowReplies(conf.id)}
-                              className="flex items-center space-x-1 text-gray-400 hover:text-indigo-400 transition-colors"
-                              aria-label={showReplies[conf.id] ? `Hide replies for confession ${conf.id}` : `Show replies for confession ${conf.id}`}
-                            >
-                              <MessageSquare size={16} />
-                              <span>{conf.reply_count || 0}</span>
-                            </button>
-                            {conf.user_id === userId && canModify(conf.timestamp) && (
-                              <>
-                                <button
-                                  onClick={() => startEditing(conf.id, conf.text)}
-                                  className="text-gray-400 hover:text-gray-200 transition-colors"
-                                  aria-label={`Edit confession ${conf.id}`}
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                                <button
-                                  onClick={() => deleteConfession(conf.id)}
-                                  className="text-gray-400 hover:text-gray-200 transition-colors"
-                                  aria-label={`Delete confession ${conf.id}`}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                          <p className="text-gray-400 text-sm">
-                            {new Date(conf.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                        {showReplies[conf.id] && (
-                          <div className="mt-4">
-                            <form onSubmit={(e) => handleReplySubmit(e, conf.id)} className="mb-4">
-                              <textarea
-                                value={replyText[conf.id] || ''}
-                                onChange={(e) => setReplyText(prev => ({ ...prev, [conf.id]: e.target.value.slice(0, maxLength) }))}
-                                placeholder="Write a reply..."
-                                className="w-full p-2 rounded-lg bg-gray-700/80 text-gray-200 border border-gray-600/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
-                                rows="2"
-                                aria-label="Reply input"
-                              />
-                              <div className="flex justify-between items-center mt-2">
-                                <div className="text-gray-400 text-sm font-mono">
-                                  {(replyText[conf.id] || '').length} / {maxLength}
-                                </div>
-                                <button
-                                  type="submit"
-                                  disabled={!replyText[conf.id]?.trim()}
-                                  className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium py-1 px-3 rounded-lg shadow-md hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                                  aria-label="Submit reply"
-                                >
-                                  <Send size={16} />
-                                  <span>Reply</span>
-                                </button>
-                              </div>
-                            </form>
-                            {replies[conf.id]?.length > 0 ? (
-                              <ul className="space-y-2">
-                                {replies[conf.id].map(reply => (
-                                  <li
-                                    key={reply.id}
-                                    className="bg-gray-900/50 p-2 rounded-lg text-gray-300 text-sm border border-gray-800/50"
-                                  >
-                                    <div className="flex justify-between items-start">
-                                      <div>
-                                        <span className="text-indigo-400 font-medium">
-                                          {reply.username || 'Anonymous'}
-                                        </span>
-                                        <p className="mt-1">{reply.text}</p>
-                                      </div>
-                                      {reply.user_id === userId && canModify(reply.timestamp) && (
-                                        <button
-                                          onClick={() => deleteReply(conf.id, reply.id)}
-                                          className="text-gray-400 hover:text-gray-200 transition-colors"
-                                          aria-label={`Delete reply ${reply.id}`}
-                                        >
-                                          <Trash2 size={14} />
-                                        </button>
-                                      )}
-                                    </div>
-                                    <p className="text-gray-500 text-xs mt-1">
-                                      {new Date(reply.timestamp).toLocaleString()}
-                                    </p>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-gray-400 text-sm">No replies yet.</p>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {loading && (
-                <div className="flex items-center justify-center space-x-2 text-indigo-400 mt-4 animate-fadeIn">
-                  <Star size={20} className="animate-spin" />
-                  <span>Loading Confessions...</span>
+        <div ref={confessionsContainerRef} className="space-y-4" style={{ minHeight: confessionsHeight }}>
+          {confessions.map((conf, index) => (
+            <div
+              key={conf.id}
+              id={`confession-${conf.id}`}
+              ref={index === confessions.length - 1 ? lastConfessionRef : null}
+              className="bg-gray-900/60 backdrop-blur-md rounded-xl p-5 shadow-lg border border-gray-800/50 transition-all duration-300 hover:shadow-indigo-500/10"
+            >
+              {editingId === conf.id ? (
+                <div>
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value.slice(0, maxLength))}
+                    className="w-full p-4 rounded-xl bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
+                    rows="4"
+                    aria-label="Edit confession"
+                  />
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="text-gray-400 text-sm font-mono">
+                      {editText.length} / {maxLength}
+                    </div>
+                    <div className="space-x-2">
+                      <button
+                        onClick={() => saveEdit(conf.id)}
+                        className="bg-indigo-500 text-white py-1 px-3 rounded-lg hover:bg-indigo-600 transition-colors"
+                        aria-label="Save edit"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="bg-gray-700 text-white py-1 px-3 rounded-lg hover:bg-gray-600 transition-colors"
+                        aria-label="Cancel edit"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start">
+                    <p className="text-gray-200 text-base">{conf.text}</p>
+                    {conf.user_id === userId && canModify(conf.timestamp) && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => startEditing(conf.id, conf.text)}
+                          className="text-gray-400 hover:text-indigo-400 transition-colors"
+                          aria-label="Edit confession"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => deleteConfession(conf.id)}
+                          className="text-gray-400 hover:text-red-400 transition-colors"
+                          aria-label="Delete confession"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center mt-3">
+                    <div className="flex items-center space-x-4">
+                      <button
+                        onClick={() => toggleLikeConfession(conf.id)}
+                        className={`flex items-center space-x-1 ${
+                          userLikes.has(conf.id) ? 'text-red-400' : 'text-gray-400'
+                        } hover:text-red-400 transition-colors`}
+                        aria-label={userLikes.has(conf.id) ? 'Unlike confession' : 'Like confession'}
+                      >
+                        <Heart size={16} fill={userLikes.has(conf.id) ? 'currentColor' : 'none'} />
+                        <span>{conf.hearts || 0}</span>
+                      </button>
+                      <button
+                        onClick={() => toggleShowReplies(conf.id)}
+                        className="flex items-center space-x-1 text-gray-400 hover:text-indigo-400 transition-colors"
+                        aria-label={showReplies[conf.id] ? 'Hide replies' : 'Show replies'}
+                      >
+                        <MessageSquare size={16} />
+                        <span>{conf.reply_count || 0}</span>
+                      </button>
+                    </div>
+                    <div className="text-gray-500 text-sm">
+                      {new Date(conf.timestamp).toLocaleString()} by {conf.username || 'Anonymous'}
+                    </div>
+                  </div>
+                  {showReplies[conf.id] && (
+                    <div className="mt-4 space-y-4">
+                      {(replies[conf.id] || []).map(reply => (
+                        <div key={reply.id} className="bg-gray-800/50 rounded-lg p-3 relative">
+                          <p className="text-gray-300 text-sm">{reply.text}</p>
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mt-2 gap-2">
+                            <span className="text-gray-500 text-sm sm:text-sm truncate reply-timestamp">
+                              {new Date(reply.timestamp).toLocaleString()} by {reply.username || 'Anonymous'}
+                            </span>
+                            {reply.user_id === userId && canModify(reply.timestamp) && (
+                              <button
+                                onClick={() => deleteReply(conf.id, reply.id)}
+                                className="text-gray-400 hover:text-red-400 transition-colors self-start sm:self-auto p-2 -m-2"
+                                aria-label="Delete reply"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <form onSubmit={(e) => handleReplySubmit(e, conf.id)} className="mt-2">
+                        <textarea
+                          value={replyText[conf.id] || ''}
+                          onChange={(e) => setReplyText(prev => ({ ...prev, [conf.id]: e.target.value.slice(0, maxLength) }))}
+                          placeholder="Write a reply..."
+                          className="w-full p-3 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
+                          rows="2"
+                          aria-label="Reply input"
+                        />
+                        <div className="flex justify-between items-center mt-1">
+                          <div className="text-gray-400 text-sm font-mono">
+                            {(replyText[conf.id] || '').length} / {maxLength}
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={!(replyText[conf.id]?.trim())}
+                            className="flex items-center space-x-1 bg-indigo-500 text-white py-1 px-3 rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                            aria-label="Submit reply"
+                          >
+                            <Send size={16} />
+                            <span>Reply</span>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+                </>
               )}
             </div>
+          ))}
+          {loading && (
+            <div className="text-center text-gray-400 py-4">Loading more confessions...</div>
+          )}
+          {!hasMore && confessions.length > 0 && (
+            <div className="text-center text-gray-400 py-4">No more confessions to load.</div>
           )}
         </div>
       </div>

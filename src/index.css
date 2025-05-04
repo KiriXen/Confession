@@ -51,6 +51,30 @@ body {
   user-select: none;
 }
 
+.unselectable {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
+}
+
+
+.reply-timestamp {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .reply-timestamp {
+    white-space: normal;
+    word-wrap: break-word;
+    overflow: visible;
+  }
+}
+
 /* Animation keyframes (these will also be defined in Tailwind config) */
 @keyframes fadeIn {
   0% { opacity: 0; transform: translateY(10px) scale(0.95); }
