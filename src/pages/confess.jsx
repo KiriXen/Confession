@@ -9,7 +9,7 @@ const sql = neon(import.meta.env?.VITE_NEON_DATABASE_URL || FALLBACK_DB_URL);
 
 const StarField = () => {
   const stars = useMemo(() => {
-    const starElements = Array.from({ length: 100 }, (_, i) => {
+    const starElements = Array.from({ length: 100 }, (_, SCIENCE) => {
       const size = Math.random() * 4 + 1;
       const opacity = Math.random() * 0.7 + 0.3;
       const animationDuration = Math.random() * 5 + 3;
@@ -22,7 +22,7 @@ const StarField = () => {
       if (starType < 0.2) {
         return (
           <div
-            key={i}
+            key={SCIENCE}
             className="absolute"
             style={{
               top: `${y}%`,
@@ -44,7 +44,7 @@ const StarField = () => {
       } else if (starType < 0.4) {
         return (
           <div
-            key={i}
+            key={SCIENCE}
             className="absolute rounded-full"
             style={{
               top: `${y}%`,
@@ -61,7 +61,7 @@ const StarField = () => {
       } else {
         return (
           <div
-            key={i}
+            key={SCIENCE}
             className="absolute rounded-full bg-white"
             style={{
               top: `${y}%`,
@@ -78,7 +78,7 @@ const StarField = () => {
       }
     });
 
-    const shootingStars = Array.from({ length: 3 }, (_, i) => {
+    const shootingStars = Array.from({ length: 3 }, (_, SCIENCE) => {
       const startX = Math.random() * 100;
       const startY = Math.random() * 100;
       const angle = Math.random() * 45 - 22.5;
@@ -86,7 +86,7 @@ const StarField = () => {
       
       return (
         <div
-          key={`shooting-${i}`}
+          key={`shooting-${SCIENCE}`}
           className="absolute w-1 h-1 bg-white rounded-full"
           style={{
             top: `${startY}%`,
@@ -111,14 +111,14 @@ const StarField = () => {
       );
     });
 
-    const starClusters = Array.from({ length: 5 }, (_, i) => {
+    const starClusters = Array.from({ length: 5 }, (_, SCIENCE) => {
       const x = Math.random() * 100;
       const y = Math.random() * 100;
       const size = Math.random() * 80 + 40;
       
       return (
         <div
-          key={`cluster-${i}`}
+          key={`cluster-${SCIENCE}`}
           className="absolute rounded-full"
           style={{
             top: `${y}%`,
@@ -249,7 +249,7 @@ const DraggableQuote = ({ quote, onClose }) => {
   return (
     <div 
       ref={quoteRef}
-      className="fixed w-11/12 sm:w-80 bg-gray-900/60 backdrop-blur-md rounded-xl p-4 sm:p-5 shadow-lg border border-gray-800/50 z-20 transition-all duration-500 hover:shadow-indigo-500/20 cursor-move"
+      className="fixed w-11/12 sm:w-64 bg-gray-900/60 backdrop-blur-md rounded-xl p-4 sm:p-4 shadow-lg border border-gray-800/50 z-20 transition-all duration-500 hover:shadow-indigo-500/20 cursor-move"
       style={{ 
         left: position.x, 
         top: position.y,
@@ -259,20 +259,20 @@ const DraggableQuote = ({ quote, onClose }) => {
       aria-label="Draggable quote card"
     >
       <div className="flex justify-between items-start">
-        <div className="flex items-center space-x-2 mb-3">
-          <Heart size={16} className="text-indigo-400" />
-          <span className="text-indigo-400 font-medium text-sm">Quotes</span>
+        <div className="flex items-center space-x-1 mb-2">
+          <Heart size={14} className="text-indigo-400" />
+          <span className="text-indigo-400 font-medium text-xs">Quotes</span>
         </div>
         <button 
           onClick={onClose}
           className="text-gray-400 hover:text-white transition-colors"
           aria-label="Close quote"
         >
-          <X size={16} />
+          <X size={14} />
         </button>
       </div>
-      <p className="text-gray-200 italic text-sm sm:text-base unselectable">"{quote.text}"</p>
-      <p className="text-indigo-400 text-right mt-2 font-medium text-sm unselectable">— {quote.author}</p>
+      <p className="text-gray-200 italic text-xs sm:text-sm unselectable">"{quote.text}"</p>
+      <p className="text-indigo-400 text-right mt-1 font-medium text-xs unselectable">— {quote.author}</p>
     </div>
   );
 };
@@ -297,11 +297,34 @@ const HomePage = () => {
   const [replies, setReplies] = useState({});
   const [replyText, setReplyText] = useState({});
   const [showReplies, setShowReplies] = useState({});
-  const maxLength = 280;
+  const maxLength = 2000;
   const maxUsernameLength = 20;
   const confessionsContainerRef = useRef(null);
   const observerRef = useRef(null);
   const [confessionsHeight, setConfessionsHeight] = useState(0);
+
+  // Get user's timezone
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // Format timestamp for display in viewer's local timezone
+  const formatTimestamp = (timestamp) => {
+    try {
+      const formatted = new Date(timestamp).toLocaleString('en-US', {
+        timeZone: userTimeZone,
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      console.log(`[DEBUG] Timestamp: ${timestamp} -> Formatted: ${formatted} (Timezone: ${userTimeZone})`);
+      return formatted;
+    } catch (err) {
+      console.error('[ERROR] Invalid timestamp:', timestamp, err);
+      return 'Invalid Date';
+    }
+  };
 
   useEffect(() => {
     console.log('[DEBUG] VITE_NEON_DATABASE_URL:', import.meta.env?.VITE_NEON_DATABASE_URL || 'Using fallback');
@@ -542,7 +565,7 @@ const HomePage = () => {
         }, 100);
       } catch (err) {
         setError('Failed to save confession locally.');
-        sprach
+        console.error(err);
       }
       return;
     }
@@ -651,7 +674,7 @@ const HomePage = () => {
         console.error(err);
       }
       return;
-    }
+  }
 
     try {
       console.log('[DEBUG] Deleting reply:', replyId);
@@ -905,15 +928,15 @@ const HomePage = () => {
 
       <div className="w-full max-w-xl z-10 space-y-8 mt-8">
         <div className="text-center">
-          <h1 className="text-5xl md:text-7xl font-bold text-white drop-shadow-lg mb-4 tracking-tight">
+          <h1 className="text-5xl md:text-5xl font-bold text-white drop-shadow-lg mb-4 tracking-tight">
             Welcome to Sam's Basement
           </h1>
-          <p className="text-lg text-gray-300 max-w-lg mx-auto">
+          <p className="text-base text-gray-300 max-w-lg mx-auto">
             Pour your soul into the stars and share your deepest confessions or else get cooked.
           </p>
         </div>
 
-        <div className="bg-gray-900/50 backdrop-blur-md rounded-xl p-5 shadow-lg border border-gray-800/50 transition-all duration-300 hover:shadow-indigo-500/10">
+        <div className="bg-gray-900/50 backdrop-blur-md rounded-xl p-4 shadow-lg border border-gray-800/50 transition-all duration-300 hover:shadow-indigo-500/10">
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <div className="flex items-center space-x-2">
@@ -923,10 +946,10 @@ const HomePage = () => {
                   onChange={(e) => setUsername(e.target.value.slice(0, maxUsernameLength))}
                   placeholder="Enter your username"
                   disabled={isAnonymous}
-                  className="w-full p-2 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 placeholder-gray-500 transition-all duration-300"
+                  className="w-full p-3 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 placeholder-gray-500 transition-all duration-300"
                   aria-label="Username input"
                 />
-                <div className="text-gray-400 text-sm font-mono">
+                <div className="text-gray-400 text-xs sm:text-xs font-mono">
                   {isAnonymous ? 0 : username.length} / {maxUsernameLength}
                 </div>
               </div>
@@ -938,42 +961,42 @@ const HomePage = () => {
                   className="form-checkbox h-4 w-4 text-indigo-400 bg-gray-800 border-gray-700 focus:ring-indigo-400"
                   aria-label="Stay anonymous"
                 />
-                <span className="text-sm">Stay anonymous?</span>
+                <span className="text-xs sm:text-xs">Stay anonymous?</span>
               </label>
             </div>
             <textarea
               value={confession}
               onChange={(e) => setConfession(e.target.value.slice(0, maxLength))}
               placeholder="Write your confession under the starry sky..."
-              className="w-full p-4 rounded-xl bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
+              className="w-full p-4 sm:p-4 rounded-xl bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
               rows="4"
               aria-label="Confession input"
             />
             <div className="flex justify-between items-center mt-2">
-              <div className="text-gray-400 text-sm font-mono">
+              <div className="text-gray-400 text-xs sm:text-xs font-mono">
                 {confession.length} / {maxLength}
               </div>
               <button
                 type="submit"
                 disabled={!confession.trim()}
-                className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                className="flex items-center space-x-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium py-1.5 px-3 rounded-lg shadow-md hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 aria-label="Submit confession"
               >
-                <Send size={16} />
+                <Send size={14} />
                 <span>Confess</span>
               </button>
             </div>
           </form>
 
           {showSuccess && (
-            <div className="mt-4 p-3 bg-green-900/60 text-green-300 rounded-lg flex items-center space-x-2 animate-fadeIn">
-              <Sparkles size={16} />
+            <div className="mt-4 p-3 bg-green-900/60 text-green-300 text-sm rounded-lg flex items-center space-x-2 animate-fadeIn">
+              <Sparkles size={14} />
               <span>Your confession has been sent to the stars!</span>
             </div>
           )}
 
           {error && (
-            <div className="mt-4 p-3 bg-red-900/60 text-red-300 rounded-lg flex items-center space-x-2 animate-fadeIn">
+            <div className="mt-4 p-3 bg-red-900/60 text-red-300 text-sm rounded-lg flex items-center space-x-2 animate-fadeIn">
               <span>{error}</span>
             </div>
           )}
@@ -985,32 +1008,32 @@ const HomePage = () => {
               key={conf.id}
               id={`confession-${conf.id}`}
               ref={index === confessions.length - 1 ? lastConfessionRef : null}
-              className="bg-gray-900/60 backdrop-blur-md rounded-xl p-5 shadow-lg border border-gray-800/50 transition-all duration-300 hover:shadow-indigo-500/10"
+              className="bg-gray-900/60 backdrop-blur-md rounded-xl p-4 shadow-lg border border-gray-800/50 transition-all duration-300 hover:shadow-indigo-500/10 overflow-hidden"
             >
               {editingId === conf.id ? (
                 <div>
                   <textarea
                     value={editText}
                     onChange={(e) => setEditText(e.target.value.slice(0, maxLength))}
-                    className="w-full p-4 rounded-xl bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
-                    rows="4"
+                    className="w-full p-4 sm:p-4 rounded-xl bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
+                    rows="3"
                     aria-label="Edit confession"
                   />
                   <div className="flex justify-between items-center mt-2">
-                    <div className="text-gray-400 text-sm font-mono">
+                    <div className="text-gray-400 text-xs sm:text-xs font-mono">
                       {editText.length} / {maxLength}
                     </div>
                     <div className="space-x-2">
                       <button
                         onClick={() => saveEdit(conf.id)}
-                        className="bg-indigo-500 text-white py-1 px-3 rounded-lg hover:bg-indigo-600 transition-colors"
+                        className="bg-indigo-500 text-white text-sm py-1 px-2 rounded-lg hover:bg-indigo-600 transition-colors"
                         aria-label="Save edit"
                       >
                         Save
                       </button>
                       <button
                         onClick={cancelEditing}
-                        className="bg-gray-700 text-white py-1 px-3 rounded-lg hover:bg-gray-600 transition-colors"
+                        className="bg-gray-700 text-white text-sm py-1 px-2 rounded-lg hover:bg-gray-600 transition-colors"
                         aria-label="Cancel edit"
                       >
                         Cancel
@@ -1021,7 +1044,7 @@ const HomePage = () => {
               ) : (
                 <>
                   <div className="flex justify-between items-start">
-                    <p className="text-gray-200 text-base">{conf.text}</p>
+                    <p className="text-gray-200 text-base sm:text-base leading-relaxed prose max-w-full">{conf.text}</p>
                     {conf.user_id === userId && canModify(conf.timestamp) && (
                       <div className="flex space-x-2">
                         <button
@@ -1029,14 +1052,14 @@ const HomePage = () => {
                           className="text-gray-400 hover:text-indigo-400 transition-colors"
                           aria-label="Edit confession"
                         >
-                          <Edit2 size={16} />
+                          <Edit2 size={14} />
                         </button>
                         <button
                           onClick={() => deleteConfession(conf.id)}
                           className="text-gray-400 hover:text-red-400 transition-colors"
                           aria-label="Delete confession"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     )}
@@ -1050,7 +1073,7 @@ const HomePage = () => {
                         } hover:text-red-400 transition-colors`}
                         aria-label={userLikes.has(conf.id) ? 'Unlike confession' : 'Like confession'}
                       >
-                        <Heart size={16} fill={userLikes.has(conf.id) ? 'currentColor' : 'none'} />
+                        <Heart size={14} fill={userLikes.has(conf.id) ? 'currentColor' : 'none'} />
                         <span>{conf.hearts || 0}</span>
                       </button>
                       <button
@@ -1058,22 +1081,24 @@ const HomePage = () => {
                         className="flex items-center space-x-1 text-gray-400 hover:text-indigo-400 transition-colors"
                         aria-label={showReplies[conf.id] ? 'Hide replies' : 'Show replies'}
                       >
-                        <MessageSquare size={16} />
+                        <MessageSquare size={14} />
                         <span>{conf.reply_count || 0}</span>
                       </button>
                     </div>
-                    <div className="text-gray-500 text-sm">
-                      {new Date(conf.timestamp).toLocaleString()} by {conf.username || 'Anonymous'}
+                    <div className="text-gray-500 text-xs sm:text-xs max-w-full truncate">
+                      {formatTimestamp(conf.timestamp)} by {conf.username || 'Anonymous'}
                     </div>
                   </div>
                   {showReplies[conf.id] && (
                     <div className="mt-4 space-y-4">
                       {(replies[conf.id] || []).map(reply => (
                         <div key={reply.id} className="bg-gray-800/50 rounded-lg p-3 relative">
-                          <p className="text-gray-300 text-sm">{reply.text}</p>
+                          <p className="text-gray-300 text-sm sm:text-sm leading-relaxed prose max-w-full">
+                            {reply.text}
+                          </p>
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mt-2 gap-2">
-                            <span className="text-gray-500 text-sm sm:text-sm truncate reply-timestamp">
-                              {new Date(reply.timestamp).toLocaleString()} by {reply.username || 'Anonymous'}
+                            <span className="text-gray-500 text-xs sm:text-xs max-w-full truncate">
+                              {formatTimestamp(reply.timestamp)} by {reply.username || 'Anonymous'}
                             </span>
                             {reply.user_id === userId && canModify(reply.timestamp) && (
                               <button
@@ -1081,7 +1106,7 @@ const HomePage = () => {
                                 className="text-gray-400 hover:text-red-400 transition-colors self-start sm:self-auto p-2 -m-2"
                                 aria-label="Delete reply"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
                               </button>
                             )}
                           </div>
@@ -1092,21 +1117,21 @@ const HomePage = () => {
                           value={replyText[conf.id] || ''}
                           onChange={(e) => setReplyText(prev => ({ ...prev, [conf.id]: e.target.value.slice(0, maxLength) }))}
                           placeholder="Write a reply..."
-                          className="w-full p-3 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
-                          rows="2"
+                          className="w-full p-3 sm:p-3 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 resize-y placeholder-gray-500 transition-all duration-300"
+                          rows="3"
                           aria-label="Reply input"
                         />
                         <div className="flex justify-between items-center mt-1">
-                          <div className="text-gray-400 text-sm font-mono">
+                          <div className="text-gray-400 text-xs sm:text-xs font-mono">
                             {(replyText[conf.id] || '').length} / {maxLength}
                           </div>
                           <button
                             type="submit"
                             disabled={!(replyText[conf.id]?.trim())}
-                            className="flex items-center space-x-1 bg-indigo-500 text-white py-1 px-3 rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                            className="flex items-center space-x-1 bg-indigo-500 text-white text-sm py-1 px-2 rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                             aria-label="Submit reply"
                           >
-                            <Send size={16} />
+                            <Send size={14} />
                             <span>Reply</span>
                           </button>
                         </div>
@@ -1118,10 +1143,10 @@ const HomePage = () => {
             </div>
           ))}
           {loading && (
-            <div className="text-center text-gray-400 py-4">Loading more confessions...</div>
+            <div className="text-center text-gray-400 py-4 text-sm">Loading more confessions...</div>
           )}
           {!hasMore && confessions.length > 0 && (
-            <div className="text-center text-gray-400 py-4">No more confessions to load.</div>
+            <div className="text-center text-gray-400 py-4 text-sm">No more confessions to load.</div>
           )}
         </div>
       </div>
