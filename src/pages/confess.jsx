@@ -312,7 +312,6 @@ const HomePage = () => {
         minute: '2-digit',
         hour12: true
       });
-      console.log(`[DEBUG] Timestamp: ${timestamp} -> Formatted: ${formatted} (Timezone: ${userTimeZone})`);
       return formatted;
     } catch (err) {
       console.error('[ERROR] Invalid timestamp:', timestamp, err);
@@ -333,7 +332,6 @@ const HomePage = () => {
   useEffect(() => {
     const initDb = async () => {
       const databaseUrl = process.env.REACT_APP_NEON_DATABASE_URL;
-      console.log('[DEBUG] REACT_APP_NEON_DATABASE_URL:', databaseUrl ? 'Loaded' : 'Missing');
 
       if (!databaseUrl) {
         console.error('[ERROR] VITE_NEON_DATABASE_URL is not defined in .env');
@@ -351,7 +349,6 @@ const HomePage = () => {
       const sql = neon(databaseUrl);
 
       try {
-        console.log('[DEBUG] Initializing database...');
         await sql`
           CREATE TABLE IF NOT EXISTS confessions (
             id BIGINT PRIMARY KEY,
@@ -369,14 +366,12 @@ const HomePage = () => {
         `;
         const confessionColumnNames = confessionColumns.map(col => col.column_name);
         if (!confessionColumnNames.includes('user_id')) {
-          console.log('[DEBUG] Adding user_id column to confessions table...');
           await sql`
             ALTER TABLE confessions
             ADD COLUMN user_id TEXT
           `;
         }
         if (!confessionColumnNames.includes('username')) {
-          console.log('[DEBUG] Adding username column to confessions table...');
           await sql`
             ALTER TABLE confessions
             ADD COLUMN username TEXT
@@ -408,13 +403,11 @@ const HomePage = () => {
         `;
         const replyColumnNames = replyColumns.map(col => col.column_name);
         if (!replyColumnNames.includes('username')) {
-          console.log('[DEBUG] Adding username column to replies table...');
           await sql`
             ALTER TABLE replies
             ADD COLUMN username TEXT
           `;
         }
-        console.log('[DEBUG] Database initialized successfully');
         fetchConfessions(1);
         fetchUserLikes();
       } catch (err) {
@@ -435,13 +428,11 @@ const HomePage = () => {
   const fetchUserLikes = useCallback(async () => {
     if (useLocalStorage) return;
     try {
-      console.log('[DEBUG] Fetching user likes for user:', userId);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const likes = await sql`
         SELECT confession_id FROM likes WHERE user_id = ${userId}
       `;
       setUserLikes(new Set(likes.map(like => like.confession_id)));
-      console.log('[DEBUG] Fetched user likes:', likes.length);
     } catch (err) {
       console.error('[ERROR] Fetch user likes failed:', err);
     }
@@ -474,7 +465,6 @@ const HomePage = () => {
 
     setLoading(true);
     try {
-      console.log('[DEBUG] Fetching confessions, page:', pageNum);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const limit = 20;
       const offset = (pageNum - 1) * limit;
@@ -493,7 +483,6 @@ const HomePage = () => {
       setConfessions(prev => pageNum === 1 ? sanitizedResult : [...prev, ...sanitizedResult]);
       setHasMore(result.length === limit);
       setPage(pageNum);
-      console.log('[DEBUG] Fetched confessions:', result.length);
     } catch (err) {
       setError('Failed to load confessions. Please try again.');
       console.error('[ERROR] Fetch confessions failed:', err);
@@ -509,14 +498,12 @@ const HomePage = () => {
     }
 
     try {
-      console.log('[DEBUG] Fetching replies for confession:', confessionId);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const result = await sql`
         SELECT * FROM replies
         WHERE confession_id = ${confessionId}
         ORDER BY timestamp ASC
       `;
-      console.log('[DEBUG] Fetched replies:', result.length);
       return result;
     } catch (err) {
       setError('Failed to load replies. Please try again.');
@@ -582,7 +569,6 @@ const HomePage = () => {
     }
     
     try {
-      console.log('[DEBUG] Submitting confession:', newConfession.text);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`
         INSERT INTO confessions (id, text, timestamp, hearts, user_id, username)
@@ -597,7 +583,6 @@ const HomePage = () => {
         }
         setTimeout(() => setShowSuccess(false), 2000);
       }, 100);
-      console.log('[DEBUG] Confession submitted successfully');
     } catch (err) {
       setError('Failed to submit confession. Please try again.');
       console.error('[ERROR] Submit confession failed:', err);
@@ -643,7 +628,6 @@ const HomePage = () => {
     }
 
     try {
-      console.log('[DEBUG] Submitting reply for confession:', confessionId);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`
         INSERT INTO replies (id, confession_id, text, timestamp, user_id, username)
@@ -659,7 +643,6 @@ const HomePage = () => {
             : conf
         )
       );
-      console.log('[DEBUG] Reply submitted successfully');
     } catch (err) {
       setError('Failed to submit reply. Please try again.');
       console.error('[ERROR] Submit reply failed:', err);
@@ -690,7 +673,6 @@ const HomePage = () => {
     }
 
     try {
-      console.log('[DEBUG] Deleting reply:', replyId);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`DELETE FROM replies WHERE id = ${replyId}`;
       const updatedReplies = await fetchReplies(confessionId);
@@ -702,7 +684,6 @@ const HomePage = () => {
             : conf
         )
       );
-      console.log('[DEBUG] Reply deleted successfully');
     } catch (err) {
       setError('Failed to delete reply. Please try again.');
       console.error('[ERROR] Delete reply failed:', err);
@@ -743,7 +724,6 @@ const HomePage = () => {
     }
 
     try {
-      console.log('[DEBUG] Toggling like for confession:', id);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const hasLiked = userLikes.has(id);
       
@@ -766,7 +746,6 @@ const HomePage = () => {
         setConfessions(prev =>
           prev.map(conf => conf.id === id ? { ...conf, hearts: updated[0].hearts } : conf)
         );
-        console.log('[DEBUG] Confession unliked successfully');
       } else {
         await sql`
           INSERT INTO likes (user_id, confession_id)
@@ -782,7 +761,6 @@ const HomePage = () => {
         setConfessions(prev =>
           prev.map(conf => conf.id === id ? { ...conf, hearts: updated[0].hearts } : conf)
         );
-        console.log('[DEBUG] Confession liked successfully');
       }
     } catch (err) {
       setError('Failed to toggle like. Please try again.');
@@ -821,7 +799,6 @@ const HomePage = () => {
     }
 
     try {
-      console.log('[DEBUG] Editing confession:', id);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`
         UPDATE confessions
@@ -833,7 +810,6 @@ const HomePage = () => {
       );
       setEditingId(null);
       setEditText('');
-      console.log('[DEBUG] Confession edited successfully');
     } catch (err) {
       setError('Failed to edit confession. Please try again.');
       console.error('[ERROR] Edit confession failed:', err);
@@ -874,7 +850,6 @@ const HomePage = () => {
     }
 
     try {
-      console.log('[DEBUG] Deleting confession:', id);
       const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const confessionElement = document.getElementById(`confession-${id}`);
       if (confessionElement) {
@@ -908,7 +883,6 @@ const HomePage = () => {
           return newReplies;
         });
       }
-      console.log('[DEBUG] Confession deleted successfully');
     } catch (err) {
       setError('Failed to delete confession. Please try again.');
       console.error('[ERROR] Delete confession failed:', err);
@@ -951,6 +925,16 @@ const HomePage = () => {
           <p className="text-base text-gray-300 max-w-lg mx-auto">
             Pour your soul into the stars and share your deepest confessions or else get cooked.
           </p>
+        </div>
+
+        {/* Important Notification */}
+        <div className="bg-red-900/70 backdrop-blur-md rounded-xl p-4 shadow-lg border border-red-600/50 text-red-200 text-sm sm:text-base">
+          <div className="flex items-center space-x-2">
+            <Sparkles size={16} className="text-red-400" />
+            <p>
+                Stepping away from socials and everything else for a while.. maybe forever if you're reading this. It's been real, all the laughs, the late-night convos, the weird posts.. I'll carry all that with me 💔. You've all been too good to me fr 😭. Can't really sum it up in a few words but js know I'm grateful and maybe we'll cross paths again or maybe not... either way, take care of yourselves everyone :3
+            </p>
+          </div>
         </div>
 
         <div className="bg-gray-900/50 backdrop-blur-md rounded-xl p-4 shadow-lg border border-gray-800/50 transition-all duration-300 hover:shadow-indigo-500/10">
