@@ -3,10 +3,6 @@ import { Heart, Sparkles, Send, Trash2, Star, X, Edit2, MessageSquare } from 'lu
 import { neon } from '@neondatabase/serverless';
 import { quotes } from './quotes';
 
-const FALLBACK_DB_URL = 'postgresql://confession_owner:npg_MxTItZfkQ79r@ep-snowy-mode-a4e4zve3-pooler.us-east-1.aws.neon.tech/confession?sslmode=require';
-
-const sql = neon(import.meta.env?.VITE_NEON_DATABASE_URL || FALLBACK_DB_URL);
-
 const StarField = () => {
   const stars = useMemo(() => {
     const starElements = Array.from({ length: 100 }, (_, SCIENCE) => {
@@ -303,10 +299,8 @@ const HomePage = () => {
   const observerRef = useRef(null);
   const [confessionsHeight, setConfessionsHeight] = useState(0);
 
-  // Get user's timezone
   const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // Format timestamp for display in viewer's local timezone
   const formatTimestamp = (timestamp) => {
     try {
       const formatted = new Date(timestamp).toLocaleString('en-US', {
@@ -327,10 +321,6 @@ const HomePage = () => {
   };
 
   useEffect(() => {
-    console.log('[DEBUG] VITE_NEON_DATABASE_URL:', import.meta.env?.VITE_NEON_DATABASE_URL || 'Using fallback');
-  }, []);
-
-  useEffect(() => {
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
     setQuote(randomQuote);
   }, []);
@@ -342,6 +332,24 @@ const HomePage = () => {
 
   useEffect(() => {
     const initDb = async () => {
+      const databaseUrl = process.env.REACT_APP_NEON_DATABASE_URL;
+      console.log('[DEBUG] REACT_APP_NEON_DATABASE_URL:', databaseUrl ? 'Loaded' : 'Missing');
+
+      if (!databaseUrl) {
+        console.error('[ERROR] VITE_NEON_DATABASE_URL is not defined in .env');
+        setError('Database URL is missing. Using local storage instead.');
+        setUseLocalStorage(true);
+        const localConfessions = JSON.parse(localStorage.getItem('confessions') || '[]');
+        const localLikes = JSON.parse(localStorage.getItem('userLikes') || '[]');
+        const localReplies = JSON.parse(localStorage.getItem('replies') || '{}');
+        setConfessions(localConfessions);
+        setUserLikes(new Set(localLikes));
+        setReplies(localReplies);
+        return;
+      }
+
+      const sql = neon(databaseUrl);
+
       try {
         console.log('[DEBUG] Initializing database...');
         await sql`
@@ -428,6 +436,7 @@ const HomePage = () => {
     if (useLocalStorage) return;
     try {
       console.log('[DEBUG] Fetching user likes for user:', userId);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const likes = await sql`
         SELECT confession_id FROM likes WHERE user_id = ${userId}
       `;
@@ -466,6 +475,7 @@ const HomePage = () => {
     setLoading(true);
     try {
       console.log('[DEBUG] Fetching confessions, page:', pageNum);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const limit = 20;
       const offset = (pageNum - 1) * limit;
       const result = await sql`
@@ -500,6 +510,7 @@ const HomePage = () => {
 
     try {
       console.log('[DEBUG] Fetching replies for confession:', confessionId);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const result = await sql`
         SELECT * FROM replies
         WHERE confession_id = ${confessionId}
@@ -572,6 +583,7 @@ const HomePage = () => {
     
     try {
       console.log('[DEBUG] Submitting confession:', newConfession.text);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`
         INSERT INTO confessions (id, text, timestamp, hearts, user_id, username)
         VALUES (${newConfession.id}, ${newConfession.text}, ${newConfession.timestamp}, ${newConfession.hearts}, ${newConfession.user_id}, ${newConfession.username})
@@ -632,6 +644,7 @@ const HomePage = () => {
 
     try {
       console.log('[DEBUG] Submitting reply for confession:', confessionId);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`
         INSERT INTO replies (id, confession_id, text, timestamp, user_id, username)
         VALUES (${newReply.id}, ${newReply.confession_id}, ${newReply.text}, ${newReply.timestamp}, ${newReply.user_id}, ${newReply.username})
@@ -674,10 +687,11 @@ const HomePage = () => {
         console.error(err);
       }
       return;
-  }
+    }
 
     try {
       console.log('[DEBUG] Deleting reply:', replyId);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`DELETE FROM replies WHERE id = ${replyId}`;
       const updatedReplies = await fetchReplies(confessionId);
       setReplies(prev => ({ ...prev, [confessionId]: updatedReplies }));
@@ -730,6 +744,7 @@ const HomePage = () => {
 
     try {
       console.log('[DEBUG] Toggling like for confession:', id);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const hasLiked = userLikes.has(id);
       
       if (hasLiked) {
@@ -807,6 +822,7 @@ const HomePage = () => {
 
     try {
       console.log('[DEBUG] Editing confession:', id);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       await sql`
         UPDATE confessions
         SET text = ${editText}
@@ -859,6 +875,7 @@ const HomePage = () => {
 
     try {
       console.log('[DEBUG] Deleting confession:', id);
+      const sql = neon(process.env.REACT_APP_NEON_DATABASE_URL);
       const confessionElement = document.getElementById(`confession-${id}`);
       if (confessionElement) {
         confessionElement.style.opacity = '0';
