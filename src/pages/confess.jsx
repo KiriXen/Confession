@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Heart, Sparkles, Send, Trash2, Star, X, Edit2, MessageSquare } from 'lucide-react';
+import { Heart, Sparkles, Send, Trash2, Star, X, Edit2, MessageSquare, Lock, ArrowUp } from 'lucide-react';
 import { neon } from '@neondatabase/serverless';
 import { quotes } from './quotes';
+import CryptoJS from 'crypto-js';
 
 const StarField = () => {
   const stars = useMemo(() => {
@@ -293,11 +294,21 @@ const HomePage = () => {
   const [replies, setReplies] = useState({});
   const [replyText, setReplyText] = useState({});
   const [showReplies, setShowReplies] = useState({});
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [tempUsername, setTempUsername] = useState('');
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [modalTop, setModalTop] = useState(0);
   const maxLength = 2000;
   const maxUsernameLength = 20;
   const confessionsContainerRef = useRef(null);
   const observerRef = useRef(null);
+  const modalRef = useRef(null);
   const [confessionsHeight, setConfessionsHeight] = useState(0);
+
+  const restrictedNames = ['sam', 'sammy', 'kirixen'];
+  const hashedPassword = 'ff4f8e4f387c4f107f4d3bde4a699aaf5511942fbcf88ab23950b842176c5962';
 
   const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -330,9 +341,36 @@ const HomePage = () => {
   }, [username, isAnonymous]);
 
   useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 200);
+      updateModalPosition();
+    };
+    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('resize', updateModalPosition);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', updateModalPosition);
+    };
+  }, []);
+
+  const updateModalPosition = () => {
+    if (!modalRef.current) return;
+    const viewportHeight = window.innerHeight;
+    const modalHeight = modalRef.current.offsetHeight;
+    const scrollY = window.scrollY;
+    const topPosition = scrollY + (viewportHeight - modalHeight) / 2;
+    setModalTop(topPosition);
+  };
+
+  useEffect(() => {
+    if (showPasswordModal) {
+      updateModalPosition();
+    }
+  }, [showPasswordModal]);
+
+  useEffect(() => {
     const initDb = async () => {
       const databaseUrl = process.env.REACT_APP_NEON_DATABASE_URL;
-
       if (!databaseUrl) {
         console.error('[ERROR] VITE_NEON_DATABASE_URL is not defined in .env');
         setError('Database URL is missing. Using local storage instead.');
@@ -347,7 +385,6 @@ const HomePage = () => {
       }
 
       const sql = neon(databaseUrl);
-
       try {
         await sql`
           CREATE TABLE IF NOT EXISTS confessions (
@@ -531,6 +568,42 @@ const HomePage = () => {
       setConfessionsHeight(0);
     }
   }, [confessions]);
+
+  const handleUsernameChange = (e) => {
+    const newUsername = e.target.value.slice(0, maxUsernameLength);
+    const lowerCaseUsername = newUsername.toLowerCase();
+    if (!isAnonymous && restrictedNames.some(name => lowerCaseUsername.includes(name))) {
+      setTempUsername(newUsername);
+      setShowPasswordModal(true);
+      setPasswordInput('');
+      setPasswordError('');
+    } else {
+      setUsername(newUsername);
+    }
+  };
+
+  const handlePasswordSubmit = () => {
+    const hashedInput = CryptoJS.SHA256(passwordInput).toString();
+    if (hashedInput === hashedPassword) {
+      setUsername(tempUsername);
+      setShowPasswordModal(false);
+      setPasswordInput('');
+      setPasswordError('');
+    } else {
+      setPasswordError('Incorrect password. Please try again.');
+    }
+  };
+
+  const handlePasswordCancel = () => {
+    setShowPasswordModal(false);
+    setPasswordInput('');
+    setPasswordError('');
+    setTempUsername('');
+  };
+
+  const handleBackToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -917,6 +990,53 @@ const HomePage = () => {
         <DraggableQuote quote={quote} onClose={() => setQuoteVisible(false)} />
       )}
 
+      {showPasswordModal && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-40">
+          <div
+            ref={modalRef}
+            className="absolute left-1/2 transform -translate-x-1/2 z-50 w-11/12 max-w-md"
+            style={{ top: `${modalTop}px` }}
+          >
+            <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-6 border border-gray-800/50 shadow-lg">
+              <div className="flex items-center space-x-2 mb-4">
+                <Lock size={20} className="text-indigo-400" />
+                <h2 className="text-xl text-white font-semibold">Restricted Username</h2>
+              </div>
+              <p className="text-gray-300 text-sm mb-4">
+                The username "{tempUsername}" is restricted. Please enter the password to use it.
+              </p>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter password"
+                className="w-full p-3 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 placeholder-gray-500 transition-all duration-300"
+                aria-label="Password input"
+              />
+              {passwordError && (
+                <p className="text-red-400 text-sm mt-2">{passwordError}</p>
+              )}
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  onClick={handlePasswordCancel}
+                  className="bg-gray-700 text-white text-sm py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors"
+                  aria-label="Cancel password entry"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePasswordSubmit}
+                  className="bg-indigo-500 text-white text-sm py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors"
+                  aria-label="Submit password"
+                >
+                  Submit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-xl z-10 space-y-8 mt-8">
         <div className="text-center">
           <h1 className="text-5xl md:text-5xl font-bold text-white drop-shadow-lg mb-4 tracking-tight">
@@ -927,12 +1047,11 @@ const HomePage = () => {
           </p>
         </div>
 
-        {/* Important Notification */}
         <div className="bg-red-900/70 backdrop-blur-md rounded-xl p-4 shadow-lg border border-red-600/50 text-red-200 text-sm sm:text-base">
           <div className="flex items-center space-x-2">
             <Sparkles size={16} className="text-red-400" />
             <p>
-                Stepping away from socials and everything else for a while.. maybe forever if you're reading this. It's been real, all the laughs, the late-night convos, the weird posts.. I'll carry all that with me 💔. You've all been too good to me fr 😭. Can't really sum it up in a few words but js know I'm grateful and maybe we'll cross paths again or maybe not... either way, take care of yourselves everyone :3
+              Stepping away from socials and everything else for a while.. maybe forever if you're reading this. It's been real, all the laughs, the late-night convos, the weird posts.. I'll carry all that with me 💔. You've all been too good to me fr 😭. Can't really sum it up in a few words but js know I'm grateful and maybe we'll cross paths again or maybe not... either way, take care of yourselves everyone :3
             </p>
           </div>
         </div>
@@ -944,7 +1063,7 @@ const HomePage = () => {
                 <input
                   type="text"
                   value={isAnonymous ? '' : username}
-                  onChange={(e) => setUsername(e.target.value.slice(0, maxUsernameLength))}
+                  onChange={handleUsernameChange}
                   placeholder="Enter your username"
                   disabled={isAnonymous}
                   className="w-full p-3 rounded-lg bg-gray-800/80 text-gray-200 border border-gray-700/50 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30 placeholder-gray-500 transition-all duration-300"
@@ -1151,6 +1270,16 @@ const HomePage = () => {
           )}
         </div>
       </div>
+
+      {showBackToTop && (
+        <button
+          onClick={handleBackToTop}
+          className="fixed bottom-4 right-4 bg-indigo-500 text-white p-3 rounded-full shadow-lg hover:bg-indigo-600 transition-all duration-300 z-30"
+          aria-label="Back to top"
+        >
+          <ArrowUp size={20} />
+        </button>
+      )}
     </div>
   );
 };
